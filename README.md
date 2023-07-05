@@ -38,6 +38,27 @@
 
 ### Basic imports
 
+
+```python
+import pandas as pd
+import numpy as np
+import tensorflow as tf
+from tensorflow import keras
+from tensorflow.keras import layers
+from sklearn.preprocessing import StandardScaler
+from sklearn.model_selection import train_test_split
+from sklearn.naive_bayes import GaussianNB
+from sklearn.neighbors import KNeighborsClassifier
+from sklearn.metrics import plot_confusion_matrix
+from sklearn.metrics import confusion_matrix,accuracy_score,f1_score,precision_score,plot_roc_curve,accuracy_score,recall_score
+from sklearn.metrics import classification_report, roc_auc_score
+import matplotlib.pyplot as plt
+import seaborn as sns
+import warnings
+from imblearn.over_sampling import SMOTE, BorderlineSMOTE, SVMSMOTE, ADASYN, KMeansSMOTE
+
+```
+
     2022-11-18 22:32:41.098717: I tensorflow/core/platform/cpu_feature_guard.cc:193] This TensorFlow binary is optimized with oneAPI Deep Neural Network Library (oneDNN) to use the following CPU instructions in performance-critical operations:  AVX2 FMA
     To enable them in other operations, rebuild TensorFlow with the appropriate compiler flags.
     2022-11-18 22:32:41.227679: W tensorflow/stream_executor/platform/default/dso_loader.cc:64] Could not load dynamic library 'libcudart.so.11.0'; dlerror: libcudart.so.11.0: cannot open shared object file: No such file or directory
@@ -50,9 +71,21 @@
 
 Load in the creditcard csv data using pandas.
 
+
+```python
+warnings.filterwarnings('ignore')
+cd_df = pd.read_csv("creditcard.csv")
+rnd_state = 69
+```
+
 Printing the header and first few rows to get a look at the data. Also printing the shape and info
 
 Retrieve key statistical information about the data.
+
+
+```python
+cd_df.describe().round(2).style.background_gradient()
+```
 
 
 
@@ -414,6 +447,11 @@ Retrieve key statistical information about the data.
 Check for duplicates.
 
 
+```python
+cd_df.duplicated().sum()
+```
+
+
 
 
     1081
@@ -423,11 +461,28 @@ Check for duplicates.
 Remove duplicates
 
 
+```python
+cd_df = cd_df.drop_duplicates()
+cd_df.duplicated().sum()
+```
+
+
 
 
     0
 
 
+
+
+```python
+def visualize_legit_vs_fraud(fraud_vs_non_fraud):
+    legit, fraud, all = fraud_vs_non_fraud[0], fraud_vs_non_fraud[1], fraud_vs_non_fraud[0] + fraud_vs_non_fraud[1]
+    plt.pie(x=fraud_vs_non_fraud, labels=["Legit", "Fraud"], startangle=-30)
+    plt.legend([f"Legit Transactions ({round((legit/all)*100, 2)}%)", f"Fraudulent Transactions ({round((fraud/all)*100, 2)}%)"], bbox_to_anchor=(0.5, 0.05), bbox_transform=plt.gcf().transFigure, loc="lower center")
+    plt.title("Percentage of Legit vs Fraudulent Transactions")
+    plt.show()
+visualize_legit_vs_fraud(cd_df["Class"].value_counts().tolist())
+```
 
 
     
@@ -442,6 +497,14 @@ We can see from the pie chart above that the ratio between fraudulent and legiti
 Majority of the features in the dataset (V1 - V28) are censored, meaning we do not know what the collumn represents, just its value. There are however two features we do something about. Time which is time in seconds since the first transaction in the dataset, and amount in dollars per transaction. We are now going to take a closer look at these features.
 
 
+```python
+plt.figure(figsize=(18,6))
+sns.boxplot(data=cd_df, x="Amount", y="Class", orient="h")
+plt.title("Amount distribution legitimate vs fraudulent.")
+plt.show()
+```
+
+
     
 ![png](Credit_card_analysis_files/Credit_card_analysis_16_0.png)
     
@@ -452,11 +515,26 @@ The boxplot above shows the distribution of the amount feature where class 1 rep
 Since the outliers are so large in the legitimate transactions we are not able to get a detailed view of the majority of transactions. To counter this we are going to use the same plot but remove the upper 10th percentile of the amount feature.
 
 
+```python
+percentile_90 = cd_df["Amount"].quantile(0.9)
+percentile_90
+```
+
+
 
 
     203.38
 
 
+
+
+```python
+resampeled_amount = cd_df[cd_df["Amount"] < percentile_90]
+plt.figure(figsize=(18,6))
+sns.boxplot(data=resampeled_amount, x="Amount", y="Class", orient="h")
+plt.title("Amount distribution legitimate vs fraudulent.")
+plt.show()
+```
 
 
     
@@ -467,6 +545,28 @@ Since the outliers are so large in the legitimate transactions we are not able t
 After removing the large outliers we get a clearer view of the distribution. The main difference between the fraud and legit case is the median amount. The median amount for the fraud case is about ~ $3 - $4 and the median amount for the legit case is about ~ $15 - $20.
 
 We will now take a closer look at the time feature. As time in this dataset is recorded in seconds we are going to convert it into hours as it is easier to read.
+
+
+```python
+cd_df["Time"] = cd_df["Time"].div(3600).round(0)
+legit = cd_df[cd_df["Class"] == 0]
+fraud = cd_df[cd_df["Class"] == 1]
+test_pd = pd.concat([legit['Amount'], fraud['Amount']], axis=1, keys=['legit', 'fraud'])
+
+fig, ax = plt.subplots(2, 1, figsize=(18, 10))
+fig.suptitle("Visualizing fraudulent vs legitimate transactions on the uncensored features", fontsize=22)
+
+sns.distplot(legit["Time"], ax=ax[0], color="blue", bins=48)
+ax[0].set_title("Legit Transaction Time Distribution")
+ax[0].set_xlim([min(legit["Time"]), max(legit["Time"])])
+ax[0].set_xticks(np.arange(0,48,4))
+
+sns.distplot(fraud["Time"], ax=ax[1], color="red", bins=48)
+ax[1].set_title("Fraud Transaction Time Distribution")
+ax[1].set_xlim([min(fraud["Time"]), max(fraud["Time"])])
+ax[1].set_xticks(np.arange(0,48,4))
+plt.show()
+```
 
 
     
@@ -480,6 +580,14 @@ Here we see the distribution of the time feature of both the legit and fraud cas
 ### Plotting the correlation between the different features in the dataset
 
 
+```python
+corr = cd_df.corr()
+plt.figure(figsize=(20, 12))
+sns.heatmap(corr, annot=True, fmt=".2f", linewidth=0.5)
+plt.show()
+```
+
+
     
 ![png](Credit_card_analysis_files/Credit_card_analysis_24_0.png)
     
@@ -488,6 +596,18 @@ Here we see the distribution of the time feature of both the legit and fraud cas
 The heatmap above shows the correlation between each feature in dataset. The diagonal line showing all 1's are the correlations between the same feature and are therefore obviously going to be 1. In this project however we are mainly focused on the correlation between all the features and the label class.
 
 We are therefore going to create a new plot showing only these correlations.
+
+
+```python
+classCorr = corr["Class"]
+classCorr = classCorr.iloc[:-1].to_numpy()
+cd_df_columns = cd_df.drop('Class', axis=1).columns
+plt.figure(figsize=(16, 8))
+plt.title("Correlation between features and class")
+plt.grid()
+sns.barplot(x=cd_df_columns, y=classCorr, palette=sns.color_palette("pastel"))
+plt.show()
+```
 
 
     
@@ -503,6 +623,22 @@ The features inspected are chosen using a minimum absolute value criteria of it'
 The cutoff chosen is $c_t=0.12$
 
 
+```python
+cutoff = 0.12
+mostImportantFeatures = [f"V{index}" for index, i  in enumerate(classCorr[:-1]) if np.abs(i) >= cutoff]
+if(np.abs(classCorr[-1]) >= cutoff):
+    mostImportantFeatures.append("Amount")
+plt.figure(figsize=(15,30))
+for n, feature in enumerate(mostImportantFeatures):
+    plt.subplot(11,3,n+1)
+    sns.distplot(cd_df[feature][cd_df.Class == 0], color='green', label="Legitimate")
+    sns.distplot(cd_df[feature][cd_df.Class == 1], color='red', label="Fraudulent")
+    plt.tight_layout()
+    plt.legend()
+    plt.title(feature, fontsize=12)
+```
+
+
     
 ![png](Credit_card_analysis_files/Credit_card_analysis_28_0.png)
     
@@ -514,6 +650,15 @@ Before we start building any of our models we will start by proposing a few base
 We will first take a look at the Zero Rate Classifier that proposes that we always guess for the most abundent class.
 
 <a href="https://towardsdatascience.com/calculating-a-baseline-accuracy-for-a-classification-model-a4b342ceb88f#:~:text=Zero%20Rate%20Classifier&text=The%20ZeroR%20(or%20Zero%20Rate,just%20going%20with%20the%20odds.">Source: Zero Rate Classifier</a>
+
+
+```python
+legit_transactions = (cd_df["Class"]==0).sum()
+fraud_transactions = (cd_df["Class"]==1).sum()
+print(f"fraud transactions vs legit: {legit_transactions}, {fraud_transactions} \n")
+print(f"Guessing for the largest class gives us a accuracy of: \
+{round(((legit_transactions)/(legit_transactions+fraud_transactions))*100, 2)}% \n ")
+```
 
     fraud transactions vs legit: 283253, 473 
     
@@ -527,6 +672,13 @@ in this instance is useless.
 Using Weighted Guessing we can guess how many cases of class 1 and 0 appear based on the amount in the dataset.
 The guesses will be proportional to how many cases there are of the classes in the dataset.
 So we will guess 1, fraud 0.17% of the time and 0, legit 99.83% of the time. Percentages taken from the previous pie chart.
+
+
+```python
+legit_percentage = ((legit_transactions)/(legit_transactions+fraud_transactions))
+fraud_precentage = ((fraud_transactions)/(legit_transactions+fraud_transactions))
+print(f"Weighted guessing gives us a accuracy of: {round((legit_percentage**2 + fraud_precentage**2)*100, 2)}% \n")
+```
 
     Weighted guessing gives us a accuracy of: 99.67% 
     
@@ -546,6 +698,27 @@ We start off be testing the Naive Bayes classifier. This model is simple yet fas
 
 We start by training a Naive Bayes model on our unprocessed data and evaluate the performance of our model.
 
+
+```python
+labels = cd_df["Class"]
+features = cd_df.drop("Class", axis=1)
+
+x_train, x_test, y_train, y_test = train_test_split(
+    features, labels, test_size=0.2, random_state=rnd_state)
+
+
+classifier=GaussianNB()
+
+classifier.fit(x_train , y_train)
+train_score = classifier.score(x_train, y_train)
+test_score = classifier.score(x_test, y_test)
+pred = classifier.predict(x_test)
+
+print(f"training score: {train_score} \n")
+print(f"test score: {test_score} \n")
+print(f"Overfitting: {train_score-test_score} \n")
+```
+
     training score: 0.9776059564719358 
     
     test score: 0.9776548126740211 
@@ -560,6 +733,12 @@ We start by training a Naive Bayes model on our unprocessed data and evaluate th
 A confusion matrix is a description of results. It is a 2-by-2 matrix with true prognosis against predicted prognosis. Whenever a binary classification is performed, a confusion matrix will put a number to its correct and incorrect prediction. Commonly used in all fields that test for something, where the test returns posetiv or negative. 
 The correct predictions are True, both posetive and negativ, and false for incorrect predictions. 
 
+
+
+```python
+plot_confusion_matrix(classifier, x_test, y_test, cmap='plasma')
+plt.title('Naive Bayes Model Confusion Matrix (Unbalanced)', fontsize=12)
+```
 
 
 
@@ -579,6 +758,12 @@ Here we can clearly see that the model is not accurate in its predictions regard
 <a href="https://aws.amazon.com/what-is/overfitting/">Source: Overfitting</a>
 
 #### Classification report
+
+
+```python
+report = classification_report(y_test, pred)
+print(f"Classification Report: \n{report}")
+```
 
     Classification Report: 
                   precision    recall  f1-score   support
@@ -606,12 +791,51 @@ We will now process the data and see whether that helps our models to be better 
 
 We start off by rescaling the amount features to values between -1 and 1.
 
+
+```python
+std_scaler = StandardScaler()
+preprocess_df = cd_df.copy()
+preprocess_df["New_amount"] = std_scaler.fit_transform(
+    preprocess_df["Amount"].values.reshape(-1, 1))
+
+preprocess_df.drop(['Amount', 'Time'], axis=1, inplace=True)
+
+x = preprocess_df.drop("Class", axis=1)
+y = preprocess_df["Class"]
+```
+
 ### Different upsampling methods
 
 There are many ways to create new data from original data. Since the dataset is so unbalanced, upsampling is definately a good idea, but choosing a upsampling method is not as simple. Therefore since our problem statement is to find out how the unbalanced dataset affects the prediction models, we also need to account for different balancing methods. 
 
 <a href="https://towardsdatascience.com/7-over-sampling-techniques-to-handle-imbalanced-data-ec51c8db349f">Source: Oversampling techniques</a>
 
+
+
+```python
+def testWithSmote(cd_df_, smote):
+    data_noTime_df = cd_df_.drop(['Time'], axis=1)
+    x = data_noTime_df.drop("Class", axis=1)
+    y = data_noTime_df["Class"]
+   
+    x_balanced, y_balanced = smote.fit_resample(x, y)
+
+    y_balanced = pd.DataFrame({"Class": y_balanced.values})
+
+    x_train, x_test, y_train, y_test = train_test_split(
+        x_balanced, y_balanced, test_size=0.2, random_state=0)
+    
+    classifier.fit(x_train , y_train)
+    train_score = classifier.score(x_train, y_train)
+    test_score = classifier.score(x_test, y_test)
+    pred = classifier.predict(x_test)
+    f1 = f1_score(y_test, pred)
+    rec_score = recall_score(y_test, pred)
+    report = classification_report(y_test, pred)
+    print(report)
+
+    return train_score, test_score, f1, rec_score
+```
 
 #### Synthetic Minority Oversampling Technique (SMOTE)
 This method creates new syntethic samples by utilizing a k-nearest neighbor algorithm. It basically creates samples between already existing samples, with some random element to where exactly between each datapoint it ends up being. 
@@ -620,6 +844,14 @@ This method creates new syntethic samples by utilizing a k-nearest neighbor algo
 
 
 
+
+
+```python
+result_smote_data = []
+smote_standard  = SMOTE(random_state=rnd_state)
+smote_standard_train, smote_standard_test, smote_standard_f1, smote_standard_recall = testWithSmote(cd_df, smote_standard)
+result_smote_data.append(["smote_standard", smote_standard_train, smote_standard_test, smote_standard_f1, smote_standard_recall])
+```
 
                   precision    recall  f1-score   support
     
@@ -631,6 +863,13 @@ This method creates new syntethic samples by utilizing a k-nearest neighbor algo
     weighted avg       0.92      0.91      0.91    113302
     
 
+
+
+```python
+kmeansSmote = KMeansSMOTE(k_neighbors=5, cluster_balance_threshold=0.0001, random_state=rnd_state)
+kmeansSmote_train, kmeansSmote_test, kmeansSmote_f1, kmeansSmote_recall = testWithSmote(cd_df, kmeansSmote)
+result_smote_data.append(["kmeansSmote", kmeansSmote_train, kmeansSmote_test, kmeansSmote_f1, kmeansSmote_recall])
+```
 
                   precision    recall  f1-score   support
     
@@ -651,6 +890,13 @@ This method is similar to the previous, but quite simply doesn't use outlier poi
 
 
 
+
+```python
+borderlineSmote = BorderlineSMOTE(random_state=rnd_state) 
+borderlineSmote_train, borderlineSmote_test, borderlineSmote_f1, borderlineSmote_recall = testWithSmote(cd_df, borderlineSmote)
+result_smote_data.append(["borderlineSmote", borderlineSmote_train, borderlineSmote_test, borderlineSmote_f1, borderlineSmote_recall])
+```
+
                   precision    recall  f1-score   support
     
                0       0.92      0.97      0.94     56461
@@ -669,6 +915,13 @@ This method again is quite similar to the previous, except that it replaces K-ne
 <a href="https://machinelearningmastery.com/smote-oversampling-for-imbalanced-classification/">Source: SMOTE for Imbalanced Classification with Python</a>
 
 
+
+
+```python
+svmSmote = SVMSMOTE(random_state=rnd_state)
+svmSmote_train, svmSmote_test, svmSmote_f1, svmSmote_recall = testWithSmote(cd_df, svmSmote)
+result_smote_data.append(["svmSmote", svmSmote_train, svmSmote_test, svmSmote_f1, svmSmote_recall])
+```
 
                   precision    recall  f1-score   support
     
@@ -689,6 +942,13 @@ This method is a advanced version of SMOTE, which now creates more samples in th
 
 
 
+
+```python
+adasyn = ADASYN(random_state=rnd_state)
+adasyn_train, adysan_test, adasyn_f1, adasyn_recall = testWithSmote(cd_df, adasyn)
+result_smote_data.append(["adasyn", adasyn_train, adysan_test, adasyn_f1, adasyn_recall])
+```
+
                   precision    recall  f1-score   support
     
                0       0.75      0.96      0.84     56534
@@ -699,6 +959,12 @@ This method is a advanced version of SMOTE, which now creates more samples in th
     weighted avg       0.85      0.82      0.82    113303
     
 
+
+
+```python
+smote_pd = pd.DataFrame(result_smote_data, columns=["Smote method", "Train Accuracy", "Test Accuracy", "f1-score", "Recall"])
+smote_pd.sort_values(by=["f1-score"], ascending=False).style.background_gradient()
+```
 
 
 
@@ -812,12 +1078,34 @@ This method is a advanced version of SMOTE, which now creates more samples in th
 
 
 
+```python
+balanced_x, balanced_y = smote_standard.fit_resample(x, y)
+
+balanced_x["Class"] = balanced_y.values
+balanced_y = pd.DataFrame({"Class": balanced_y.values})
+
+visualize_legit_vs_fraud(
+    balanced_y["Class"].value_counts().tolist())
+```
+
+
     
 ![png](Credit_card_analysis_files/Credit_card_analysis_62_0.png)
     
 
 
 As we can see after upsampling the fraudulent cases the dataset is now balanced at a 50/50 ratio between fraud and legit transactions.
+
+
+```python
+balanced_x, balanced_y = smote_standard.fit_resample(x, y)
+balanced_df = balanced_x.join(balanced_y)
+
+balanced_corr = balanced_df.corr()
+plt.figure(figsize=(20, 12))
+sns.heatmap(balanced_corr, annot=True, fmt=".2f", linewidth=0.5)
+plt.show()
+```
 
 
     
@@ -828,12 +1116,44 @@ As we can see after upsampling the fraudulent cases the dataset is now balanced 
 The heatmap above displays the new correlation between each feature after using the SMOTE upsampling
 
 
+```python
+balanced_class_corr = balanced_corr["Class"]
+balanced_class_corr = balanced_class_corr.iloc[:-1].to_numpy()
+balanced_df.rename(index={'Amount_reshaped':'Amount'}, inplace=True)
+cd_df_columns = balanced_df.drop('Class', axis=1).columns
+plt.figure(figsize=(18, 8))
+plt.title("Correlation between features and class")
+plt.grid()
+sns.barplot(x=cd_df_columns, y=balanced_class_corr, palette=sns.color_palette("pastel"))
+plt.show()
+
+# classCorr = corr_barplot(corr, balanced_df)
+```
+
+
     
 ![png](Credit_card_analysis_files/Credit_card_analysis_66_0.png)
     
 
 
 Showing the correlation between all the features and Class of the balanced dataset.
+
+
+```python
+x_balanced_train, x_balanced_test, y_balanced_train, y_balanced_test = train_test_split(
+    balanced_x, balanced_y, test_size=0.2, random_state=rnd_state)
+
+balanced_NB_classifier=GaussianNB()
+
+balanced_NB_classifier.fit(x_balanced_train , y_balanced_train)
+train_balanced_NB_score = balanced_NB_classifier.score(x_balanced_train, y_balanced_train)
+test_balanced_NB_score = balanced_NB_classifier.score(x_balanced_test, y_balanced_test)
+balanced_NB_pred = balanced_NB_classifier.predict(x_balanced_test)
+
+print(f"training score: {train_balanced_NB_score} \n")
+print(f"test score: {test_balanced_NB_score} \n")
+print(f"Overfitting: {train_balanced_NB_score-test_balanced_NB_score} \n")
+```
 
     training score: 0.9122117192257791 
     
@@ -842,6 +1162,12 @@ Showing the correlation between all the features and Class of the balanced datas
     Overfitting: -0.00039353046089896093 
     
 
+
+
+```python
+plot_confusion_matrix(balanced_NB_classifier, x_balanced_test, y_balanced_test, cmap='plasma')
+plt.title('Naive Bayes Model Confusion Matrix (balanced)', fontsize=12)
+```
 
 
 
@@ -855,6 +1181,16 @@ Showing the correlation between all the features and Class of the balanced datas
 ![png](Credit_card_analysis_files/Credit_card_analysis_69_1.png)
     
 
+
+
+```python
+balanced_NB_report = classification_report(y_balanced_test, balanced_NB_pred)
+nb_f1 = f1_score(y_balanced_test, balanced_NB_pred)
+nb_recall = recall_score(y_balanced_test, balanced_NB_pred)
+print(f"Classification Report: \n{balanced_NB_report}")
+conclusion_matrix = []
+conclusion_matrix.append(["Naive Bayes", train_balanced_NB_score, test_balanced_NB_score, nb_f1, nb_recall])
+```
 
     Classification Report: 
                   precision    recall  f1-score   support
@@ -881,6 +1217,28 @@ Our dataset is binary, but quite large for this model.
 <a href="https://scikit-learn.org/stable/modules/neighbors.html#classification">Source: SKLearn KNN</a>
 
 
+```python
+balanced_x, balanced_y = smote_standard.fit_resample(x, y)
+
+balanced_y = pd.DataFrame({"Class": balanced_y.values})
+
+balanced_df = balanced_x.join(balanced_y)
+
+```
+
+
+```python
+importantFeatures = mostImportantFeatures[3:]
+plt.figure(figsize=(20,15))
+for n in range(len(importantFeatures)-1):
+    plt.subplot(3,3,n+1)
+    sns.scatterplot(data=balanced_df, x=importantFeatures[n], y=importantFeatures[n+1], alpha=0.4, hue="Class")
+    plt.legend()
+    plt.title(f"{importantFeatures[n]} x {importantFeatures[n+1]}", fontsize=26)
+plt.show()
+```
+
+
     
 ![png](Credit_card_analysis_files/Credit_card_analysis_74_0.png)
     
@@ -899,8 +1257,35 @@ Using .iloc to select the subset.
 
 <a href="https://www.i2tutorials.com/why-cannot-we-use-knn-for-large-datasets/">Source: KNN-Problematic</a>
 
+
+```python
+x_train_short, y_train_short, x_test_short, y_test_short = x_balanced_train.iloc[:1000], y_balanced_train.iloc[:1000], x_balanced_test.iloc[:1000], y_balanced_test.iloc[:1000]
+```
+
 ### K-Factors
  We tried different k-factors, and plotted their respective accuracy.
+
+
+```python
+k_factor = np.arange(1, 7, 2)
+train_accuracy = np.empty(len(k_factor))
+test_accuracy = np.empty(len(k_factor))
+
+for i, k in enumerate(k_factor):
+    knn = KNeighborsClassifier(n_neighbors=k)
+    knn.fit(x_train_short, y_train_short)
+    train_accuracy[i] = knn.score(x_train_short, y_train_short)
+    test_accuracy[i] = knn.score(x_test_short, y_test_short)
+  
+plt.plot(k_factor, test_accuracy, label = 'Testing dataset Accuracy')
+plt.plot(k_factor, train_accuracy, label = 'Training dataset Accuracy')
+  
+plt.legend()
+plt.xlabel('k_factor')
+plt.ylabel('Accuracy')
+plt.title('Accuracy over different k values with smaller dataset')
+plt.show()
+```
 
 
     
@@ -911,6 +1296,19 @@ Using .iloc to select the subset.
 The model gives the best accuracy with a k-factor of 1, so that is the value that will be used from here on out.
 
 #### Performance
+
+
+```python
+knn = KNeighborsClassifier(n_neighbors=1)
+
+knn.fit(x_train_short , y_train_short)
+train_score = knn.score(x_train_short, y_train_short)
+test_score = knn.score(x_test_short, y_test_short)
+knn_pred = knn.predict(x_test_short)
+
+plot_confusion_matrix(knn, x_test_short, y_test_short, cmap='plasma')
+plt.title('KNN-short Model Confusion Matrix ', fontsize=12)
+```
 
 
 
@@ -926,6 +1324,15 @@ The model gives the best accuracy with a k-factor of 1, so that is the value tha
 
 
 #### Classification Report
+
+
+```python
+knn_report = classification_report(y_test_short, knn_pred)
+print(f"Classification Report for KNN model: \n{knn_report}")
+knn_f1_score = f1_score(y_test_short, knn_pred)
+knn_recall_score = recall_score(y_test_short, knn_pred)
+conclusion_matrix.append(["K nearest neighbour", train_score, test_score, knn_f1_score, knn_recall_score])
+```
 
     Classification Report for KNN model: 
                   precision    recall  f1-score   support
@@ -946,6 +1353,18 @@ If could be the case that the balanced dataset lack clear differences, so we wil
 Using the scatterplot once again, to see if there is any clear differentses.
 
 
+```python
+plt.figure(figsize=(20,15))
+importantFeatures = mostImportantFeatures[3:]
+for n in range(len(importantFeatures)-1):
+    plt.subplot(3,3,n+1)
+    sns.scatterplot(data=cd_df, x=importantFeatures[n], y=importantFeatures[n+1], alpha=0.4, hue="Class")
+    plt.legend()
+    plt.title(f"{importantFeatures[n]} x {importantFeatures[n+1]}", fontsize=26)
+plt.show()
+```
+
+
     
 ![png](Credit_card_analysis_files/Credit_card_analysis_87_0.png)
     
@@ -954,6 +1373,25 @@ Using the scatterplot once again, to see if there is any clear differentses.
 The most distinct features show clear grouping for the legit class, but the fraud class is more spread out. This works in favour of the KNN model.
 
 ### Performance
+
+
+```python
+labels = cd_df["Class"]
+features = cd_df.drop("Class", axis=1)
+
+x_train, x_test, y_train, y_test = train_test_split(
+    features, labels, test_size=0.2, random_state=rnd_state)
+
+knn = KNeighborsClassifier(n_neighbors=1)
+
+knn.fit(x_train , y_train)
+train_score = knn.score(x_train, y_train)
+test_score = knn.score(x_test, y_test)
+knn_pred = knn.predict(x_test)
+
+plot_confusion_matrix(knn, x_test, y_test, cmap='plasma')
+plt.title('KNN Model Confusion Matrix for Original Data ', fontsize=12)
+```
 
 
 
@@ -967,6 +1405,12 @@ The most distinct features show clear grouping for the legit class, but the frau
 ![png](Credit_card_analysis_files/Credit_card_analysis_90_1.png)
     
 
+
+
+```python
+knn_report = classification_report(y_test, knn_pred)
+print(f"Classification Report for KNN model: \n{knn_report}")
+```
 
     Classification Report for KNN model: 
                   precision    recall  f1-score   support
@@ -992,9 +1436,47 @@ This classification model does not work well with such an imbalanced dataset.
 
 ### Get clean start for all data
 
+
+```python
+cd_df = pd.read_csv("creditcard.csv")
+```
+
+
+```python
+rnd_state = 69
+
+std_scaler = StandardScaler()
+preprocess_df = cd_df.copy()
+preprocess_df["New_amount"] = std_scaler.fit_transform(
+    preprocess_df["Amount"].values.reshape(-1, 1))
+
+preprocess_df["New_time"] = std_scaler.fit_transform(
+    preprocess_df["Time"].values.reshape(-1, 1))
+
+preprocess_df.drop(['Amount', 'Time'], axis=1, inplace=True)
+
+data_noTime_df = preprocess_df
+```
+
 ### Use borderline SMOTE SVM to upsample
 
+
+```python
+x = data_noTime_df.drop("Class", axis=1)
+y = data_noTime_df["Class"]
+svmSmote = SVMSMOTE(random_state=rnd_state)
+x_balanced, y_balanced = svmSmote.fit_resample(x, y)
+```
+
 ### Split into training and test data
+
+
+```python
+y_balanced = pd.DataFrame({"Class": y_balanced.values})
+
+x_train, x_test, y_train, y_test = train_test_split(
+    x_balanced, y_balanced, test_size=0.2, random_state=0)
+```
 
 ### Train a neural network
 This neural network has 1 input layer, 3 hidden layers & 1 output layer. The layers is of the following sizes: 30x60x30x10x1. The number of neurons and hidden layers is choosen experimentally with different epoch parameters, below is the result.
@@ -1004,6 +1486,24 @@ This neural network has 1 input layer, 3 hidden layers & 1 output layer. The lay
         58, 29, 1 -> 0.9993 , 0.9994
         116, 58, 29, 1 -> 0.9994 , 0.9995
         232, 116, 58, 29, 1 -> 0.9994 , 0.9996
+
+
+```python
+nn_model = keras.Sequential([
+    keras.Input(shape=(30,)),
+    layers.Dense(60, activation="relu"),
+    layers.Dense(30, activation="relu"),
+    layers.Dense(10, activation="relu"),
+    layers.Dense(1, activation="sigmoid")
+])
+
+nn_model.summary()
+
+nn_model.compile(optimizer='adam',
+                loss='binary_crossentropy',
+                metrics=['accuracy'])
+nn_history = nn_model.fit(x_train, y_train, validation_split=0.1, epochs=5)
+```
 
     Model: "sequential_1"
     _________________________________________________________________
@@ -1034,6 +1534,25 @@ This neural network has 1 input layer, 3 hidden layers & 1 output layer. The lay
     12795/12795 [==============================] - 31s 2ms/step - loss: 0.0026 - accuracy: 0.9996 - val_loss: 0.0033 - val_accuracy: 0.9995
 
 
+
+```python
+pred = nn_model.predict(x_test)
+binary_pred = np.where(pred > 0.5, 1, 0)
+print(f"pred: {binary_pred}, test: {y_test}")
+result = confusion_matrix(y_test, binary_pred)
+result = pd.DataFrame(result, range(2), range(2))
+numpy_result = result.to_numpy()
+recall = numpy_result[1,1]/(numpy_result[1,0]+numpy_result[1,1])
+
+plt.figure(figsize=(14, 10))
+sns.set(font_scale=1.4)
+ax = sns.heatmap(result, annot=True, linewidth=0.5, fmt='g',
+                 annot_kws={"size": 14}, cmap="flare")
+ax.set(xlabel="Predicted Label", ylabel="True Label")
+plt.title("Neural Network Confusion Matrix")
+plt.show()
+```
+
     3554/3554 [==============================] - 5s 1ms/step
     pred: [[1]
      [1]
@@ -1063,10 +1582,39 @@ This neural network has 1 input layer, 3 hidden layers & 1 output layer. The lay
     
 
 
+
+```python
+nn_f1_score = f1_score(y_test, np.where(nn_model.predict(x_test) > 0.5, 1, 0))
+nn_recall_score = recall_score(y_test, np.where(nn_model.predict(x_test) > 0.5, 1, 0))
+
+test_result = nn_model.evaluate(x_test, y_test)
+conclusion_matrix.append(["Neural network", nn_history.history["accuracy"][0], test_result[1], nn_f1_score, nn_recall_score])
+```
+
     3554/3554 [==============================] - 4s 1ms/step
     3554/3554 [==============================] - 5s 1ms/step
     3554/3554 [==============================] - 6s 2ms/step - loss: 0.0023 - accuracy: 0.9996
 
+
+
+```python
+pred = nn_model.predict(data_noTime_df.drop(['Class'],axis=1))
+binary_pred = np.where(pred > 0.5, 1, 0)
+print(f"pred: {binary_pred}, test: {data_noTime_df['Class']}")
+result = confusion_matrix(data_noTime_df['Class'], binary_pred)
+result = pd.DataFrame(result, range(2),range(2))
+print(result)
+numpy_result = result.to_numpy()
+recall = numpy_result[1,1]/(numpy_result[1,0]+numpy_result[1,1])
+print(f"Recall = {recall}")
+
+plt.figure(figsize=(14, 10))
+sns.set(font_scale=1.4)
+ax = sns.heatmap(result, annot=True, linewidth=0.5, fmt='g', annot_kws={"size": 14}, cmap="flare")
+ax.set(xlabel="Predicted Label", ylabel="True Label")
+plt.title("Neural Network Confusion Matrix")
+plt.show()
+```
 
     8901/8901 [==============================] - 11s 1ms/step
     pred: [[0]
@@ -1099,6 +1647,12 @@ This neural network has 1 input layer, 3 hidden layers & 1 output layer. The lay
     
 
 
+
+```python
+nn_report = classification_report(data_noTime_df['Class'], binary_pred) # original data
+print(nn_report)
+```
+
                   precision    recall  f1-score   support
     
                0       1.00      1.00      1.00    284315
@@ -1114,6 +1668,12 @@ This neural network has 1 input layer, 3 hidden layers & 1 output layer. The lay
 Looking back at the difference between the neural network's f1-score using upsampled data and the original data for training, which then both tried to predict all of the original set, it can be observed that the more balanced albeit artificial dataset is better for training the classifier, even when only performing predictions the original dataset. 
 
 This is a direct answer to our research question. This result fits the expected outcome of the models based on our dataset's content.
+
+
+```python
+conclusion_report = pd.DataFrame(conclusion_matrix, columns=["Model", "Train Score", "Test Score", "f1-score", "Recall Score"])
+conclusion_report.sort_values(by=["f1-score"], ascending=False).style.background_gradient()
+```
 
 
 
